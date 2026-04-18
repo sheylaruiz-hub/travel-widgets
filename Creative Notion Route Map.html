@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trip Route Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -26,7 +26,7 @@
     height: 100%;
     background: var(--bg);
     color: var(--text);
-    font-family: 'DM Mono', monospace;
+    font-family: 'Open Sans', sans-serif;
     overflow: hidden;
   }
 
@@ -55,11 +55,12 @@
   }
 
   #trip-name {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Open Sans', sans-serif;
     font-style: italic;
+    font-weight: 300;
     font-size: 18px;
     color: var(--text);
-    letter-spacing: 0.01em;
+    letter-spacing: 0.04em;
   }
 
   #stop-count {
@@ -175,7 +176,7 @@
     border-radius: 4px !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
     color: var(--text) !important;
-    font-family: 'DM Mono', monospace !important;
+    font-family: 'Open Sans', sans-serif !important;
   }
 
   .leaflet-popup-tip {
@@ -189,10 +190,12 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     margin-bottom: 4px;
+    font-weight: 600;
   }
   .popup-city {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Open Sans', sans-serif;
     font-style: italic;
+    font-weight: 300;
     font-size: 16px;
     color: var(--text);
     margin-bottom: 2px;
@@ -234,6 +237,30 @@
   /* Route animation */
   @keyframes dash {
     to { stroke-dashoffset: 0; }
+  }
+
+  /* Reset button */
+  #reset-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 50px;
+    z-index: 900;
+    background: rgba(17,17,21,0.92);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  #reset-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
   }
 
   /* Legend */
@@ -301,6 +328,7 @@
     <div id="sidebar-title">Itinerary</div>
     <ul id="stop-list"></ul>
   </div>
+  <button id="reset-btn">↩ Reset view</button>
   <div id="legend">
     <div class="leg-row"><div class="leg-dot start"></div> Home base / start</div>
     <div class="leg-row"><div class="leg-dot"></div> Destination stop</div>
@@ -452,8 +480,18 @@ TRIP.stops.forEach((stop, i) => {
   listEl.appendChild(li);
 });
 
-// Clicking a marker highlights sidebar item
-markers.forEach((marker, i) => {
+// Reset view button
+document.getElementById('reset-btn').addEventListener('click', () => {
+  map.fitBounds(routeLine.getBounds(), { padding: [60, 60], animate: true, duration: 0.8 });
+  map.closePopup();
+  document.querySelectorAll('#stop-list li').forEach(el => el.classList.remove('active'));
+});
+
+// Close popup / deselect when clicking map background
+map.on('click', () => {
+  document.querySelectorAll('#stop-list li').forEach(el => el.classList.remove('active'));
+});
+
   marker.on('popupopen', () => {
     document.querySelectorAll('#stop-list li').forEach((el, j) => {
       el.classList.toggle('active', j === i);
