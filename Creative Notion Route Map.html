@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip Route Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111115;
+    --border: #1e1e24;
+    --accent: #c9a84c;
+    --accent-dim: rgba(201,168,76,0.15);
+    --text: #e8e4dc;
+    --text-dim: #6b6760;
+    --route: #c9a84c;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Header */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+
+  #header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  #trip-name {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--text);
+    letter-spacing: 0.01em;
+  }
+
+  #stop-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  #header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .stat-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .stat-value {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Map */
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+
+  /* Sidebar Panel */
+  #sidebar {
+    position: absolute;
+    top: 60px;
+    right: 16px;
+    width: 240px;
+    background: rgba(17,17,21,0.92);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    z-index: 900;
+    backdrop-filter: blur(12px);
+    overflow: hidden;
+    transition: opacity 0.3s;
+  }
+
+  #sidebar-title {
+    padding: 10px 14px;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+  }
+
+  #stop-list {
+    list-style: none;
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  #stop-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(30,30,36,0.6);
+    transition: background 0.15s;
+  }
+
+  #stop-list li:hover, #stop-list li.active {
+    background: var(--accent-dim);
+  }
+
+  .stop-num {
+    font-size: 9px;
+    color: var(--accent);
+    width: 16px;
+    flex-shrink: 0;
+  }
+
+  .stop-info {
+    flex: 1;
+  }
+
+  .stop-city {
+    font-size: 12px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .stop-region {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  /* Tooltip popup */
+  .leaflet-popup-content-wrapper {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    color: var(--text) !important;
+    font-family: 'DM Mono', monospace !important;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--surface) !important;
+  }
+
+  .popup-inner { padding: 4px 2px; }
+  .popup-num {
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .popup-city {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .popup-region {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .popup-notes {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--text);
+    line-height: 1.5;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Pulse animation for active stop */
+  @keyframes pulse-ring {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .marker-pin {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(201,168,76,0.4);
+    position: relative;
+    cursor: pointer;
+  }
+
+  .marker-pin.first {
+    background: #fff;
+    border-color: rgba(255,255,255,0.4);
+  }
+
+  /* Route animation */
+  @keyframes dash {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* Legend */
+  #legend {
+    position: absolute;
+    bottom: 20px;
+    left: 16px;
+    background: rgba(17,17,21,0.88);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    z-index: 900;
+    backdrop-filter: blur(12px);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+  }
+
+  #legend .leg-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  #legend .leg-row:last-child { margin-bottom: 0; }
+
+  .leg-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .leg-dot.start { background: #fff; }
+
+  .leg-line {
+    width: 18px; height: 2px;
+    background: var(--accent);
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div id="header-left">
+      <span id="trip-name">The Big Trip</span>
+      <span id="stop-count"></span>
+    </div>
+    <div id="header-right">
+      <div class="stat-pill">
+        <span class="stat-label">Departs</span>
+        <span class="stat-value" id="depart-date">Jun 2025</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">Stops</span>
+        <span class="stat-value" id="total-stops">—</span>
+      </div>
+    </div>
+  </div>
+  <div id="map"></div>
+  <div id="sidebar">
+    <div id="sidebar-title">Itinerary</div>
+    <ul id="stop-list"></ul>
+  </div>
+  <div id="legend">
+    <div class="leg-row"><div class="leg-dot start"></div> Home base / start</div>
+    <div class="leg-row"><div class="leg-dot"></div> Destination stop</div>
+    <div class="leg-row"><div class="leg-line"></div> Route</div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// EDIT THIS to update your destinations!
+// Add or remove stops — the map auto-updates.
+// ─────────────────────────────────────────────
+const TRIP = {
+  name: "The Big Trip",
+  departs: "Jun 2025",
+  stops: [
+    {
+      city: "Orlando",
+      region: "Florida",
+      lat: 28.5383,
+      lng: -81.3792,
+      notes: "Home base — lease ends, adventure begins.",
+      isStart: true
+    },
+    {
+      city: "Nashville",
+      region: "Tennessee",
+      lat: 36.1627,
+      lng: -86.7816,
+      notes: "Placeholder — swap in your real stop."
+    },
+    {
+      city: "New Orleans",
+      region: "Louisiana",
+      lat: 29.9511,
+      lng: -90.0715,
+      notes: "Placeholder — swap in your real stop."
+    },
+    {
+      city: "Austin",
+      region: "Texas",
+      lat: 30.2672,
+      lng: -97.7431,
+      notes: "Placeholder — swap in your real stop."
+    },
+    {
+      city: "Santa Fe",
+      region: "New Mexico",
+      lat: 35.6870,
+      lng: -105.9378,
+      notes: "Placeholder — swap in your real stop."
+    },
+    {
+      city: "Los Angeles",
+      region: "California",
+      lat: 34.0522,
+      lng: -118.2437,
+      notes: "Placeholder — swap in your real stop."
+    },
+    {
+      city: "San Francisco",
+      region: "California",
+      lat: 37.7749,
+      lng: -122.4194,
+      notes: "Placeholder — swap in your real stop."
+    }
+  ]
+};
+// ─────────────────────────────────────────────
+
+// Init header
+document.getElementById('trip-name').textContent = TRIP.name;
+document.getElementById('depart-date').textContent = TRIP.departs;
+document.getElementById('total-stops').textContent = TRIP.stops.length;
+document.getElementById('stop-count').textContent = `${TRIP.stops.length} stops`;
+
+// Init map
+const map = L.map('map', {
+  center: [37, -95],
+  zoom: 4,
+  zoomControl: false,
+  attributionControl: false
+});
+
+// Dark tile layer (CartoDB Dark Matter)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.control.attribution({ position: 'bottomleft', prefix: '' }).addTo(map);
+
+// Build route polyline
+const latlngs = TRIP.stops.map(s => [s.lat, s.lng]);
+const routeLine = L.polyline(latlngs, {
+  color: '#c9a84c',
+  weight: 2,
+  opacity: 0.55,
+  dashArray: '6, 6',
+  lineJoin: 'round'
+}).addTo(map);
+
+// Fit map to route
+map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
+
+// Build markers & sidebar
+const markers = [];
+const listEl = document.getElementById('stop-list');
+
+TRIP.stops.forEach((stop, i) => {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div class="marker-pin${stop.isStart ? ' first' : ''}"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6]
+  });
+
+  const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(map);
+
+  const popupHtml = `
+    <div class="popup-inner">
+      <div class="popup-num">Stop ${i + 1} / ${TRIP.stops.length}</div>
+      <div class="popup-city">${stop.city}</div>
+      <div class="popup-region">${stop.region}</div>
+      ${stop.notes ? `<div class="popup-notes">${stop.notes}</div>` : ''}
+    </div>
+  `;
+
+  marker.bindPopup(popupHtml, { maxWidth: 200, minWidth: 160 });
+  markers.push(marker);
+
+  // Sidebar item
+  const li = document.createElement('li');
+  li.innerHTML = `
+    <span class="stop-num">${String(i + 1).padStart(2, '0')}</span>
+    <div class="stop-info">
+      <div class="stop-city">${stop.city}</div>
+      <div class="stop-region">${stop.region}</div>
+    </div>
+  `;
+
+  li.addEventListener('click', () => {
+    map.setView([stop.lat, stop.lng], 8, { animate: true, duration: 0.8 });
+    marker.openPopup();
+    document.querySelectorAll('#stop-list li').forEach(el => el.classList.remove('active'));
+    li.classList.add('active');
+  });
+
+  listEl.appendChild(li);
+});
+
+// Clicking a marker highlights sidebar item
+markers.forEach((marker, i) => {
+  marker.on('popupopen', () => {
+    document.querySelectorAll('#stop-list li').forEach((el, j) => {
+      el.classList.toggle('active', j === i);
+    });
+  });
+});
+</script>
+</body>
+</html>
